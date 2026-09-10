@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+.bolt/
+dist/
+*.log
+.DS_Store
+.vscode/
