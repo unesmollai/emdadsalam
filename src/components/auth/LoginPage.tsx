@@ -24,11 +24,6 @@ export default function LoginPage() {
     setPhoneError(validatePhone(value));
   };
 
-  // استخراج ۵ رقم انتهایی شماره به عنوان رمز عبور
-  const getPasswordFromPhone = (phoneNumber: string) => {
-    return phoneNumber.slice(-5);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -39,11 +34,14 @@ export default function LoginPage() {
       return;
     }
 
+    if (!phone) {
+      setPhoneError('شماره تلفن الزامی است');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const password = getPasswordFromPhone(phone);
-
       // Find user by phone
       const { data: profile, error: findError } = await supabase
         .from('profiles')
@@ -51,16 +49,15 @@ export default function LoginPage() {
         .eq('phone', phone)
         .maybeSingle();
 
-      if (findError || !profile) {
-        setError('این شماره تلفن ثبت‌نام نشده است');
+      if (findError && findError.code !== 'PGRST116') {
+        console.error('Login error:', findError);
+        setError('خطا در اتصال به سرور. لطفاً دوباره تلاش کنید.');
         setLoading(false);
         return;
       }
 
-      // بررسی رمز عبور (مقایسه با ۵ رقم انتهایی)
-      const expectedPassword = profile.code; // کد ذخیره شده در پروفایل
-      if (expectedPassword !== password) {
-        setError('خطا در تأیید هویت');
+      if (!profile) {
+        setError('این شماره تلفن ثبت‌نام نشده است');
         setLoading(false);
         return;
       }
@@ -71,11 +68,34 @@ export default function LoginPage() {
         return;
       }
 
-      setUser(profile as Profile);
+      // Validate profile data
+      if (!profile.id || !profile.name) {
+        setError('خطا: داده‌های پروفایل ناقص است');
+        setLoading(false);
+        return;
+      }
+
+      const userData: Profile = {
+        id: profile.id,
+        name: profile.name || '',
+        code: profile.code || phone.slice(-4),
+        phone: profile.phone || '',
+        is_verified: profile.is_verified || false,
+        verification_status: profile.verification_status || 'unverified',
+        ownership_type: profile.ownership_type || null,
+        rank: profile.rank || 'none',
+        total_loads: profile.total_loads || 0,
+        completed_loads: profile.completed_loads || 0,
+        is_active: profile.is_active || false,
+        created_at: profile.created_at || new Date().toISOString(),
+        updated_at: profile.updated_at || new Date().toISOString(),
+      };
+
+      setUser(userData);
       setScreen('loads');
     } catch (err) {
       console.error('Login error:', err);
-      setError('خطای ناشناخته');
+      setError('خطای ناشناخته. لطفاً دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -98,7 +118,6 @@ export default function LoginPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">ورود امدادگر</h1>
           <p className="text-gray-600">شماره تلفن خود را وارد کنید</p>
-          <p className="text-xs text-gray-400 mt-2">رمز عبور شما ۵ رقم انتهایی شماره تلفن است</p>
         </div>
 
         {error && (
@@ -125,17 +144,12 @@ export default function LoginPage() {
               }`}
             />
             {phoneError && <p className="text-danger-600 text-xs mt-2 text-right">{phoneError}</p>}
-            {phone && (
-              <p className="text-xs text-gray-400 mt-1 text-right">
-                رمز عبور شما: {phone.slice(-5)}
-              </p>
-            )}
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-primary-500 text-white py-3 rounded-lg font-semibold mt-4 disabled:opacity-50"
+            disabled={loading || !phone || !!phoneError}
+            className="w-full bg-primary-500 text-white py-3 rounded-lg font-semibold mt-4 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-600 transition-colors"
           >
             {loading ? 'درحال ورود...' : 'ورود'}
           </button>
