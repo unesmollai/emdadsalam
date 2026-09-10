@@ -35,11 +35,6 @@ export default function RegisterPage() {
     setErrors(prev => ({ ...prev, phone: validatePhone(value) }));
   };
 
-  // استخراج ۵ رقم انتهایی شماره به عنوان رمز عبور
-  const getPasswordFromPhone = (phoneNumber: string) => {
-    return phoneNumber.slice(-5); // مثال: 09123456789 -> 56789
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -62,6 +57,10 @@ export default function RegisterPage() {
         .eq('phone', phone)
         .maybeSingle();
 
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
+
       if (existingUser) {
         setError('این شماره تلفن قبلاً ثبت‌نام کرده است');
         setLoading(false);
@@ -69,14 +68,13 @@ export default function RegisterPage() {
       }
 
       const userId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-      const password = getPasswordFromPhone(phone);
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .insert({
           id: userId,
           name,
-          code: password, // کد هم همان ۵ رقم انتهایی است
+          code: phone.slice(-4), // Use last 4 digits as code for display purposes
           phone,
           is_verified: false,
           verification_status: 'unverified',
@@ -96,8 +94,11 @@ export default function RegisterPage() {
         return;
       }
 
-      // ذخیره رمز در localStorage برای ورود
-      localStorage.setItem(`pass_${phone}`, password);
+      if (!profileData) {
+        setError('خطا: پروفایل ایجاد نشد.');
+        setLoading(false);
+        return;
+      }
 
       const profile: Profile = {
         id: profileData.id,
@@ -119,7 +120,7 @@ export default function RegisterPage() {
       setScreen('loads');
     } catch (err) {
       console.error('Registration error:', err);
-      setError('خطای ناشناخته');
+      setError('خطای ناشناخته. لطفاً دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -139,7 +140,6 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">ثبت‌نام امدادگر</h1>
           <p className="text-gray-600">نام و شماره تلفن خود را وارد کنید</p>
-          <p className="text-xs text-gray-400 mt-2">رمز عبور شما ۵ رقم انتهایی شماره تلفن خواهد بود</p>
         </div>
 
         {error && (
@@ -182,15 +182,12 @@ export default function RegisterPage() {
               }`}
             />
             {errors.phone && <p className="text-danger-600 text-xs mt-2 text-right">{errors.phone}</p>}
-            <p className="text-xs text-gray-400 mt-1 text-right">
-              رمز عبور شما: {phone ? phone.slice(-5) : '_____'}
-            </p>
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-primary-500 text-white py-3 rounded-lg font-semibold mt-4 disabled:opacity-50"
+            disabled={loading || !name || !phone}
+            className="w-full bg-primary-500 text-white py-3 rounded-lg font-semibold mt-4 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-600 transition-colors"
           >
             {loading ? 'درحال ثبت‌نام...' : 'ثبت‌نام و ورود'}
           </button>
