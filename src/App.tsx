@@ -103,43 +103,27 @@ function ScreenRouter() {
 }
 
 export default function App() {
-  const { setUser, setScreen } = useAppStore();
+  const { setUser, setScreen, setAdmin } = useAppStore();
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        if (session?.user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          if (data) {
-            setUser(data);
-          }
-        } else {
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || !session?.user) {
           setUser(null);
+          setAdmin(null);
           setScreen('landing');
         }
-      })();
-    });
+      });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      (async () => {
-        if (session?.user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          if (data) {
-            setUser(data);
-            setScreen('loads');
-          }
+      return () => {
+        if (subscription) {
+          subscription.unsubscribe();
         }
-      })();
-    });
-  }, []);
+      };
+    } catch (error) {
+      console.error('Auth subscription error:', error);
+    }
+  }, [setUser, setAdmin, setScreen]);
 
   return <ScreenRouter />;
 }

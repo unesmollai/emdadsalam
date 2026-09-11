@@ -27,18 +27,34 @@ export function NewLoadPage() {
     e.preventDefault();
     setError('');
 
+    // Validate user
     if (!user?.id) {
       setError('لطفا ابتدا وارد شوید');
       return;
     }
 
+    // Validate text
     if (!isValidText) {
-      setError('متن باید بین 5 تا 300 کاراکتر باشد و شامل متن فارسی');
+      if (text.trim().length < MIN_CHARS) {
+        setError(`متن باید حداقل ${MIN_CHARS} کاراکتر باشد`);
+      } else if (text.trim().length > MAX_CHARS) {
+        setError(`متن نمی‌تواند بیش از ${MAX_CHARS} کاراکتر باشد`);
+      } else if (!isPersianText(text)) {
+        setError('متن باید حاوی متن فارسی باشد');
+      }
       return;
     }
 
+    setLoading(true);
+
     try {
-      setLoading(true);
+      // Validate user data
+      if (!user.name || !user.code) {
+        setError('خطا: اطلاعات کاربری ناقص است');
+        setLoading(false);
+        return;
+      }
+
       const { error: insertError } = await supabase.from('loads').insert({
         owner_id: user.id,
         owner_name: user.name,
@@ -47,12 +63,17 @@ export function NewLoadPage() {
         status: 'active',
       });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        setError('خطا در اعلام بار. لطفا دوباره تلاش کنید.');
+        setLoading(false);
+        return;
+      }
 
       setScreen('loads');
     } catch (err) {
       console.error('Error creating load:', err);
-      setError('خطا در اعلام بار. لطفا دوباره تلاش کنید.');
+      setError('خطای ناشناخته. لطفا دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -67,10 +88,14 @@ export function NewLoadPage() {
         <div className="flex-1">
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setText(value);
+              setError(''); // Clear error when user types
+            }}
             placeholder="توضیحات بار را وارد کنید..."
             maxLength={MAX_CHARS}
-            className="w-full h-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+            className="w-full h-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-right"
             dir="rtl"
           />
         </div>
@@ -88,15 +113,15 @@ export function NewLoadPage() {
         )}
 
         {/* Validation Messages */}
-        {text.length > 0 && text.length < MIN_CHARS && (
+        {text.length > 0 && text.length < MIN_CHARS && !error && (
           <div className="bg-warning-50 border border-warning-200 text-warning-700 p-3 rounded-lg text-xs text-center">
             متن باید حداقل {MIN_CHARS} کاراکتر باشد
           </div>
         )}
 
-        {text.length > 0 && !isPersianText(text) && (
+        {text.length > 0 && !isPersianText(text) && !error && (
           <div className="bg-warning-50 border border-warning-200 text-warning-700 p-3 rounded-lg text-xs text-center">
-            متن باید فارسی باشد
+            متن باید حاوی متن فارسی باشد
           </div>
         )}
 
@@ -106,7 +131,7 @@ export function NewLoadPage() {
           disabled={!isValidText || loading}
           className={`w-full py-3 rounded-lg font-medium text-white transition-colors ${
             isValidText && !loading
-              ? 'bg-primary-500 active:bg-primary-600'
+              ? 'bg-primary-500 active:bg-primary-600 hover:bg-primary-600'
               : 'bg-gray-300 cursor-not-allowed'
           }`}
         >
